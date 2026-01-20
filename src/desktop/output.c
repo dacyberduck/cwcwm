@@ -416,25 +416,6 @@ cwc_output_get_other_available_output(struct cwc_output *reference)
     return server.fallback_output;
 }
 
-#ifdef CWC_XWAYLAND
-/* unmanaged surface is commonly short lived just destroy it with the output */
-static void _close_unmanaged(struct cwc_output *output)
-{
-    struct cwc_container *container;
-    wl_list_for_each(container, &server.containers, link)
-    {
-        if (container->output != output
-            || !cwc_container_is_unmanaged(container))
-            continue;
-
-        struct cwc_toplevel *toplevel =
-            cwc_container_get_front_toplevel(container);
-
-        wlr_xwayland_surface_close(toplevel->xwsurface);
-    }
-}
-#endif // CWC_XWAYLAND
-
 /* same alg as move to output with translate */
 static void constraint_floating_container(void *data)
 {
@@ -496,9 +477,6 @@ static void on_output_destroy(struct wl_listener *listener, void *data)
         cwc_output_get_other_available_output(output);
     cwc_output_focus(available_o);
 
-#ifdef CWC_XWAYLAND
-    _close_unmanaged(output);
-#endif // CWC_XWAYLAND
     cwc_output_rescue_toplevel_container(output, available_o);
 
     // update output layout

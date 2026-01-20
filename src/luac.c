@@ -39,7 +39,6 @@
 #include <wlr/backend/headless.h>
 #include <wlr/backend/multi.h>
 #include <wlr/backend/wayland.h>
-#include <wlr/backend/x11.h>
 #include <wlr/types/wlr_session_lock_v1.h>
 
 #include "cwc-luagen.h"
@@ -316,7 +315,7 @@ static void _backend_multi_check_nested(struct wlr_backend *_backend,
                                         void *data)
 {
     bool *is_nested = data;
-    if (wlr_backend_is_x11(_backend) || wlr_backend_is_wl(_backend))
+    if (wlr_backend_is_wl(_backend))
         *is_nested = true;
 }
 
@@ -336,7 +335,7 @@ static int luaC_is_nested(lua_State *L)
     if (wlr_backend_is_drm(server.backend))
         returnval = false;
 
-    if (wlr_backend_is_x11(server.backend) || wlr_backend_is_wl(server.backend))
+    if (wlr_backend_is_wl(server.backend))
         returnval = true;
 
     lua_pushboolean(L, returnval);
@@ -497,8 +496,6 @@ static void create_output(struct wlr_backend *backend, void *data)
         wlr_wl_output_create(backend);
     } else if (wlr_backend_is_headless(backend)) {
         wlr_headless_add_output(backend, 1920, 1080);
-    } else if (wlr_backend_is_x11(backend)) {
-        wlr_x11_output_create(backend);
     }
 }
 

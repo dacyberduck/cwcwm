@@ -11,7 +11,7 @@ script_header = custom_target(
   name.underscorify() + '_h',
   input: script_assets,
   output: 'cwc-luagen.h',
-  command: ['python', meson.source_root() / 'cwctl/gen.py', '@INPUT@', '@OUTPUT@'],
+  command: ['python', meson.project_source_root() / 'cwctl/gen.py', '@INPUT@', '@OUTPUT@'],
 )
 
 srcs = [

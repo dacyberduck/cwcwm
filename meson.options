@@ -1,3 +1,2 @@
 option('plugins', type: 'boolean', value: true, description: 'build plugins')
 option('tests', type: 'boolean', value: false, description: 'build tests')
-option('xwayland', type: 'feature', value: 'auto', description: 'build with xwayland support')

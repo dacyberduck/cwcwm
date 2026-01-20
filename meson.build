@@ -1,4 +1,4 @@
-project('cwcwm', 'c', 'cpp', default_options: ['c_std=gnu23,gnu17,gnu11','b_ndebug=if-release'])
+project('cwcwm', 'c', 'cpp', default_options: ['c_std=gnu23,gnu17,gnu11','b_ndebug=if-release'], meson_version: '>=1.1')
 
 cwc_datadir = get_option('datadir') / 'cwc'
 add_project_arguments([
@@ -9,7 +9,7 @@ add_project_arguments([
   '-DCWC_VERSION="v0.4.0-dev"',
 ], language: 'c')
 
-git_version_hash = run_command(['git', 'rev-parse', '--short', 'HEAD'], capture: true).stdout().strip()
+git_version_hash = run_command(['git', 'rev-parse', '--short', 'HEAD'], capture: true, check: false).stdout().strip()
 if git_version_hash != ''
   add_project_arguments(['-DCWC_GITHASH="' + git_version_hash + '"'], language: 'c')
 endif
@@ -25,8 +25,6 @@ xkbcommon = dependency('xkbcommon')
 libinput = dependency('libinput')
 xxhash = dependency('libxxhash')
 lua = dependency('luajit')
-xcb = dependency('xcb', required: get_option('xwayland'))
-xwayland = dependency('xwayland', required: get_option('xwayland'))
 libdrm_header = dependency('libdrm').partial_dependency(compile_args: true, includes: true)
 libm = cc.find_library('m', required : true)
 libdl = cc.find_library('dl', required : true)
@@ -50,15 +48,10 @@ all_deps = [
   libinput,
   xxhash,
   lua,
-  xcb,
   libdrm_header,
   libm,
   libdl,
 ]
-
-if get_option('xwayland').enabled() or get_option('xwayland').auto() and xcb.found() and xwayland.found()
-  add_project_arguments(['-DCWC_XWAYLAND'], language: 'c')
-endif
 
 cwc_inc = include_directories('include')
 
