@@ -21,8 +21,8 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
-#include <sys/wait.h>
 #include <sys/un.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <wayland-server-core.h>
 #include <wayland-util.h>
@@ -338,43 +338,44 @@ void server_fini(struct cwc_server *s)
 /* xwayland satellite */
 
 // pidfd_open wrapper
-static int cwc_pidfd_open(pid_t pid, unsigned int flags) {
+static int cwc_pidfd_open(pid_t pid, unsigned int flags)
+{
     return syscall(SYS_pidfd_open, pid, flags);
 }
 
 // check if xwayland-satellite is installed
-bool xwayland_satellite_exists() {
-    char *env_path = getenv("PATH");
-    if (!env_path) return false;
-
-    char *path = strdup(env_path);
-    char *dir = strtok(path, ":");
-    char full_path[1024];
-
-    while (dir != NULL) {
-        snprintf(full_path, sizeof(full_path), "%s/xwayland-satellite", dir);
-        if (access(full_path, X_OK) == 0) {
-            free(path);
-            return true;
-        }
-        dir = strtok(NULL, ":");
+bool xwayland_satellite_exists()
+{
+    const char *path = "xwayland-satellite";
+    pid_t pid = fork();
+    if (pid < 0) return false;
+    if (pid == 0) {
+        /* child */
+        unsetenv("DISPLAY");
+        char *const argv[] = { (char *)path, (char *)":0", (char *)"--test-listenfd-support", NULL };
+        execvp(path, argv);
+        _exit(127); /* exec failed */
     }
-    free(path);
-    return false;
+
+    int status = 0;
+    if (waitpid(pid, &status, 0) != pid) return false;
+    return (WIFEXITED(status) && WEXITSTATUS(status) == 0);
 }
 
 // create the Unix socket for :0
-int open_x11_socket(int *display) {
+int open_x11_socket(int *display)
+{
     char lock_path[64];
-    char socket_path[64];
     int fd = -1;
 
     for (int d = 0; d <= 32; d++) {
         snprintf(lock_path, sizeof(lock_path), "/tmp/.X%d-lock", d);
 
         // 1. Try to create the lock file
-        int lock_fd = open(lock_path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0444);
-        if (lock_fd < 0) continue;
+        int lock_fd =
+            open(lock_path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0444);
+        if (lock_fd < 0)
+            continue;
 
         // 2. Write PID to lock file
         char pid_str[12];
@@ -401,7 +402,8 @@ int open_x11_socket(int *display) {
         mkdir("/tmp/.X11-unix", 01777);
         unlink(addr.sun_path); // Clean up stale socket if it exists
 
-        if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0 && listen(fd, 5) == 0) {
+        if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0
+            && listen(fd, 5) == 0) {
             *display = d; // Success!
             return fd;
         }
@@ -413,8 +415,10 @@ int open_x11_socket(int *display) {
 }
 
 // auto-restart callback
-static int on_satellite_exit(int fd, uint32_t mask, void *data) {
+static int on_satellite_exit(int fd, uint32_t mask, void *data)
+{
     struct cwc_server *server = data;
+    server->satellite_pid     = 0;
 
     // cleanup resources
     if (server->satellite_exit_source) {
@@ -426,16 +430,51 @@ static int on_satellite_exit(int fd, uint32_t mask, void *data) {
     // reap the process to prevent zombies
     waitpid(server->satellite_pid, NULL, WNOHANG);
 
-    fprintf(stderr, "[cwc] Xwayland-satellite died. Restarting...\n");
-    spawn_xwayland_satellite(server);
+    return 0;
+}
 
+static int on_x11_socket_fd(int fd, uint32_t mask, void *data)
+{
+    struct cwc_server *server = data;
+
+    if (server->satellite_pid)
+        return 0;
+
+    pid_t pid = fork();
+    if (pid < 0)
+        return 0;
+
+    if (pid == 0) {
+        // --- CHILD ---
+        fcntl(server->x11_socket_fd, F_SETFD, 0); // Allow satellite to inherit FD
+
+        char fd_str[16], disp_str[16];
+        snprintf(fd_str, sizeof(fd_str), "%d", server->x11_socket_fd);
+        snprintf(disp_str, sizeof(disp_str), ":%d", server->x11_display);
+
+        char *argv[] = {"xwayland-satellite", disp_str, "-listenfd", fd_str,
+                        NULL};
+        execvp("xwayland-satellite", argv);
+        _exit(1);
+    }
+
+    server->satellite_pid   = pid;
+    server->satellite_pidfd = cwc_pidfd_open(pid, 0);
+
+    server->satellite_exit_source =
+        wl_event_loop_add_fd(server->wl_event_loop, server->satellite_pidfd,
+                             WL_EVENT_READABLE, on_satellite_exit, server);
+
+    server->satellite_pid = pid;
     return 0;
 }
 
 // spawning Logic
-void spawn_xwayland_satellite(struct cwc_server *server) {
+void setup_xwayland_satelite_integration(struct cwc_server *server)
+{
     if (!xwayland_satellite_exists()) {
-        fprintf(stderr, "[cwc] Error: xwayland-satellite binary not found in PATH.\n");
+        fprintf(stderr,
+                "[cwc] Error: xwayland-satellite binary not found in PATH.\n");
         return;
     }
 
@@ -452,33 +491,13 @@ void spawn_xwayland_satellite(struct cwc_server *server) {
         fprintf(stderr, "[cwc] X11 bridge ready on DISPLAY %s\n", disp_env);
     }
 
-    pid_t pid = fork();
-    if (pid < 0) return;
-
-    if (pid == 0) {
-        // --- CHILD ---
-        fcntl(server->x11_socket_fd, F_SETFD, 0); // Allow satellite to inherit FD
-
-        char fd_str[16], disp_str[16];
-        snprintf(fd_str, sizeof(fd_str), "%d", server->x11_socket_fd);
-        snprintf(disp_str, sizeof(disp_str), ":%d", server->x11_display);
-
-        char *argv[] = {"xwayland-satellite", disp_str, "-listenfd", fd_str, NULL};
-        execvp("xwayland-satellite", argv);
-        _exit(1);
-    } else if (pid > 0) {
-        server->satellite_pid = pid;
-        server->satellite_pidfd = cwc_pidfd_open(pid, 0);
-
-        if (server->satellite_pidfd != -1) {
-            struct wl_event_loop *loop = wl_display_get_event_loop(server->wl_display);
-            server->satellite_exit_source = wl_event_loop_add_fd(loop,
-                server->satellite_pidfd, WL_EVENT_READABLE, on_satellite_exit, server);
-        }
-    }
+    server->x11_fd_source =
+        wl_event_loop_add_fd(server->wl_event_loop, server->x11_socket_fd,
+                             WL_EVENT_READABLE, on_x11_socket_fd, server);
 }
 
-void cleanup_x11_bridge(struct cwc_server *server) {
+void cleanup_x11_bridge(struct cwc_server *server)
+{
     if (server->x11_socket_fd != -1) {
         char path[128];
         snprintf(path, sizeof(path), "/tmp/.X11-unix/X%d", server->x11_display);

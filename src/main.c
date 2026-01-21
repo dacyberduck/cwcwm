@@ -71,7 +71,7 @@ int main(int argc, char **argv)
     int exit_value    = 0;
     char log_level    = WLR_ERROR;
 
-    server.x11_socket_fd = -1;
+    server.x11_socket_fd   = -1;
     server.satellite_pidfd = -1;
 
     setenv("XDG_CURRENT_DESKTOP", "cwc", true);
@@ -123,7 +123,7 @@ int main(int argc, char **argv)
     if (startup_cmd)
         spawn_with_shell(startup_cmd);
 
-    spawn_xwayland_satellite(&server);
+    setup_xwayland_satelite_integration(&server);
 
     wl_display_run(server.wl_display);
 

@@ -118,8 +118,8 @@ static void _init_capture_scene(struct cwc_toplevel *toplevel)
     toplevel->capture_scene                            = wlr_scene_create();
     toplevel->capture_scene->restack_xwayland_surfaces = false;
 
-	toplevel->capture_scene_tree = wlr_scene_xdg_surface_create(
-		&toplevel->capture_scene->tree, toplevel->xdg_toplevel->base);
+    toplevel->capture_scene_tree = wlr_scene_xdg_surface_create(
+        &toplevel->capture_scene->tree, toplevel->xdg_toplevel->base);
 }
 
 static void _fini_capture_scene(struct cwc_toplevel *toplevel)
@@ -435,11 +435,11 @@ static void on_toplevel_destroy(struct wl_listener *listener, void *data)
     wl_list_remove(&toplevel->set_appid_l.link);
     wl_list_remove(&toplevel->set_title_l.link);
 
-	wl_list_remove(&toplevel->map_l.link);
-	wl_list_remove(&toplevel->unmap_l.link);
-	wl_list_remove(&toplevel->commit_l.link);
-	free(toplevel->xdg_tag);
-	free(toplevel->xdg_description);
+    wl_list_remove(&toplevel->map_l.link);
+    wl_list_remove(&toplevel->unmap_l.link);
+    wl_list_remove(&toplevel->commit_l.link);
+    free(toplevel->xdg_tag);
+    free(toplevel->xdg_description);
 
     luaC_object_unregister(L, toplevel);
     free(toplevel);

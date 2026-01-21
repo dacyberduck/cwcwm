@@ -129,7 +129,9 @@ struct cwc_server {
     int x11_socket_fd;   // x11 socket
     pid_t satellite_pid; // satellite pid
     int satellite_pidfd; // satellite pid file descriptor
-    struct wl_event_source *satellite_exit_source; // satellite pid exit listener
+    struct wl_event_source
+        *satellite_exit_source;            // satellite pid exit listener
+    struct wl_event_source *x11_fd_source; // satellite pid exit listener
 };
 
 /* global server instance from main */
@@ -138,7 +140,7 @@ extern struct cwc_server server;
 enum server_init_return_code
 server_init(struct cwc_server *s, char *config_path, char *library_path);
 void server_fini(struct cwc_server *s);
-void spawn_xwayland_satellite(struct cwc_server *server);
+void setup_xwayland_satelite_integration(struct cwc_server *server);
 void cleanup_x11_bridge(struct cwc_server *server);
 
 #endif // !_CWC_SERVER_H
