@@ -93,6 +93,12 @@ cwc.connect_signal("client::map", function(client)
     -- unmanaged client is a popup/tooltip client in xwayland so lets skip it.
     if client.unmanaged then return end
 
+    -- hide anonymous/ghost windows (spawned by xwayland-satellite sometimes)
+    if client.appid = nil and client.title = nil then
+      client.minimize = false
+      return
+    end
+
     -- center the client from the screen workarea if its floating or in floating layout.
     if client.floating then client:center() end
 
