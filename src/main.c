@@ -71,9 +71,6 @@ int main(int argc, char **argv)
     int exit_value    = 0;
     char log_level    = WLR_ERROR;
 
-    server.x11_socket_fd   = -1;
-    server.satellite_pidfd = -1;
-
     setenv("XDG_CURRENT_DESKTOP", "cwc", true);
     setenv("_JAVA_AWT_WM_NONREPARENTING", "1", true);
 

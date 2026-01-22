@@ -299,6 +299,13 @@ server_init(struct cwc_server *s, char *config_path, char *library_path)
         }
     }
 
+    s->x11_display = -1;
+    s->x11_socket_fd = -1;
+    s->satellite_pid = 0;
+    s->satellite_pidfd = -1;
+    s->satellite_exit_source = NULL;
+    s->x11_fd_source = NULL;
+
     return SERVER_INIT_SUCCESS;
 }
 
@@ -455,15 +462,33 @@ static int on_x11_socket_fd(int fd, uint32_t mask, void *data)
         char *argv[] = {"xwayland-satellite", disp_str, "-listenfd", fd_str,
                         NULL};
         execvp("xwayland-satellite", argv);
-        _exit(1);
+        _exit(127); /* exec failed */
     }
 
     server->satellite_pid   = pid;
+
     server->satellite_pidfd = cwc_pidfd_open(pid, 0);
+    if (server->satellite_pidfd < 0) {
+        fprintf(stderr, "[cwc] pidfd_open failed: %s\n", strerror(errno));
+        kill(pid, SIGKILL);
+        server->satellite_pid = 0;
+        server->satellite_pidfd = -1;
+        return 0;
+    }
 
     server->satellite_exit_source =
         wl_event_loop_add_fd(server->wl_event_loop, server->satellite_pidfd,
                              WL_EVENT_READABLE, on_satellite_exit, server);
+
+    if (!server->satellite_exit_source) {
+        fprintf(stderr, "[cwc] failed to add pidfd event source for satellite process\n");
+        close(server->satellite_pidfd);
+        server->satellite_pidfd = -1;
+        kill(pid, SIGKILL);
+        waitpid(pid, NULL, 0);
+        server->satellite_pid = 0;
+        return 0;
+    }
 
     server->satellite_pid = pid;
     return 0;
@@ -498,6 +523,27 @@ void setup_xwayland_satelite_integration(struct cwc_server *server)
 
 void cleanup_x11_bridge(struct cwc_server *server)
 {
+    if (server->satellite_exit_source) {
+        wl_event_source_remove(server->satellite_exit_source);
+        server->satellite_exit_source = NULL;
+    }
+
+    if (server->satellite_pidfd != -1) {
+        close(server->satellite_pidfd);
+        server->satellite_pidfd = -1;
+    }
+
+    if (server->satellite_pid > 0) {
+        int status = 0;
+        pid_t r;
+
+        do {
+            r = waitpid(server->satellite_pid, &status, WNOHANG);
+        } while (r == -1 && errno == EINTR);
+
+        server->satellite_pid = 0;
+    }
+
     if (server->x11_socket_fd != -1) {
         char path[128];
         snprintf(path, sizeof(path), "/tmp/.X11-unix/X%d", server->x11_display);
@@ -507,9 +553,5 @@ void cleanup_x11_bridge(struct cwc_server *server)
 
         close(server->x11_socket_fd);
         server->x11_socket_fd = -1;
-    }
-    if (server->satellite_pidfd != -1) {
-        close(server->satellite_pidfd);
-        server->satellite_pidfd = -1;
     }
 }
