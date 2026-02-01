@@ -120,7 +120,7 @@ int main(int argc, char **argv)
     if (startup_cmd)
         spawn_with_shell(startup_cmd);
 
-    setup_xwayland_satelite_integration(&server);
+    setup_xwayland_satellite_integration(&server);
 
     wl_display_run(server.wl_display);
 

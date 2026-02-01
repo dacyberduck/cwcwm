@@ -140,7 +140,7 @@ extern struct cwc_server server;
 enum server_init_return_code
 server_init(struct cwc_server *s, char *config_path, char *library_path);
 void server_fini(struct cwc_server *s);
-void setup_xwayland_satelite_integration(struct cwc_server *server);
+void setup_xwayland_satellite_integration(struct cwc_server *server);
 void cleanup_x11_bridge(struct cwc_server *server);
 
 #endif // !_CWC_SERVER_H
